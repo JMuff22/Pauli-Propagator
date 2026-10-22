@@ -64,7 +64,7 @@ Propagator
 2: ──H───────────────────||────╰X──||──RY(6.00)─┤      ╰<X@X@X>  <Y> ╰<𝓗(-1.00,13.00)>
 ```
 
-* Propagate the observables (this runs in the Rust extension `pprop_rs`, built via `maturin develop` in `native/pprop_rs/`):
+* Propagate the observables (this runs in the Rust extension `pprop_rs`):
 ```python
 prop.propagate()
 ```
@@ -84,15 +84,22 @@ prop_output = prop(random_params)
 
 ## Installation
 
-Propagation runs in a Rust extension, so installation is two steps: the
-Python package, then building that extension:
+```bash
+pip install pauli-propagation
+```
+
+This pulls in the Rust extension `pprop_rs` as a prebuilt wheel (Linux x86_64/aarch64,
+macOS arm64, Windows x64; Python 3.12+). On other platforms pip builds it from
+source, which needs a Rust toolchain ([rustup](https://rustup.rs/)).
+
+### Development install
 
 ```bash
-pip install -e .
-
 pip install maturin
 cd native/pprop_rs
 maturin develop --release
+cd ../..
+pip install -e .
 ```
 
 `maturin develop` builds `pprop_rs` and installs it straight into the active
