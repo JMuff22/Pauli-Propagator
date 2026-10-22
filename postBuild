@@ -1,6 +1,12 @@
 #!/bin/bash -l
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-source $HOME/.cargo/env
+# Binder setup. pip install -e . pulls the prebuilt pprop-rs wheel from PyPI,
+# so no Rust toolchain is needed. If this checkout pins a pprop-rs version that
+# is not released yet, fall back to building the extension from source.
+set -e
 
-pip install ./native/pprop_rs
-pip install -e .
+if ! pip install -e .; then
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source $HOME/.cargo/env
+    pip install ./native/pprop_rs
+    pip install -e .
+fi

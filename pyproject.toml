@@ -1,6 +1,6 @@
 [project]
-name = "Pauli-Propagation"
-version = "3.1.0"
+name = "pauli-propagator"
+version = "3.3.0"
 authors = [
     { name = "Saverio Monaco", email = "saverio.monaco@desy.de" },
     { name = "Aapo Lipponen", email = "aapo.lipponen@gmail.com" },
@@ -16,7 +16,7 @@ dependencies = [
     "jaxlib==0.5.0",
     "optax==0.2.4",
     "matplotlib==3.11.1",
-    "pprop-rs>=0.1,<0.2",
+    "pprop-rs==0.1.0",
 ]
 
 [tool.mypy]

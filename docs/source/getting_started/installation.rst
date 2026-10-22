@@ -3,7 +3,7 @@ Installation
 
 .. code-block:: bash
 
-    pip install pauli-propagation
+    pip install pauli-propagator
 
 This pulls in the Rust extension ``pprop_rs`` as a prebuilt wheel (Linux
 x86_64/aarch64, macOS arm64, Windows x64; Python 3.12+). On other platforms

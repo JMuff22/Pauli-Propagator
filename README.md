@@ -1,7 +1,7 @@
 # Pauli Propagation of Parametrized Circuits
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23020043.svg)](https://doi.org/10.5281/zenodo.23020043)
 
-Try it without installation. via Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/SaverioMonaco/Pauli-Propagator/HEAD?urlpath=%2Fdoc%2Ftree%2Fnotebooks%2Fshowcase.ipynb)
+Try it without installation via Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/SaverioMonaco/Pauli-Propagator/HEAD?urlpath=%2Fdoc%2Ftree%2Fnotebooks%2Fshowcase.ipynb)
 
 ## Overview
 
@@ -85,7 +85,7 @@ prop_output = prop(random_params)
 ## Installation
 
 ```bash
-pip install pauli-propagation
+pip install pauli-propagator
 ```
 
 This pulls in the Rust extension `pprop_rs` as a prebuilt wheel (Linux x86_64/aarch64,
