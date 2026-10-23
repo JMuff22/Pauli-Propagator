@@ -1414,6 +1414,8 @@ fn heisenberg_one<const NW: usize>(
 
     let mut gate_on_qubit = vec![usize::MAX; NW * 64];
     let mut compact_at = MIN_COMPACT_NODES;
+    // Test-only hook: compact after every layer.
+    let compact_every_layer = std::env::var_os("PPROP_RS_COMPACT_EVERY_LAYER").is_some();
     let mut started = false;
 
     for layer in layers {
@@ -1465,7 +1467,10 @@ fn heisenberg_one<const NW: usize>(
             for_each_bit(gm, |q| gate_on_qubit[q] = usize::MAX);
         }
         let n_nodes: usize = arenas.iter().map(|a| a.len()).sum();
-        if n_nodes >= compact_at || arenas.iter().any(|a| a.len() >= ARENA_CAPACITY / 2) {
+        if compact_every_layer
+            || n_nodes >= compact_at
+            || arenas.iter().any(|a| a.len() >= ARENA_CAPACITY / 2)
+        {
             compact(arenas, &mut shards, n_shards > 1);
             let n_nodes: usize = arenas.iter().map(|a| a.len()).sum();
             compact_at = MIN_COMPACT_NODES.max(4 * n_nodes);
