@@ -66,8 +66,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 // boundary format; inside the propagation loop a term is a `Term`.
 type CoeffTerm = (f64, Vec<u32>, Vec<u32>);
 // A term during propagation: a coefficient times the monomial `mono` in a
-// `Monomials` arena, which has `depth` sin/cos factors (kept here rather than
-// in the arena so the k2 cutoff never has to look the monomial up). Plain
+// `Monomials` arena, which has `depth` sin/cos factors - or only sin factors
+// when the arena counts sine order (kept here rather than in the arena so
+// the k2 cutoff never has to look the monomial up). Plain
 // `Copy` data, 16 bytes, so branching a Pauli word copies each term instead
 // of cloning two heap-allocated index lists. A Pauli word's full coefficient
 // is a Vec<Term> - a sum of these - since different gates along the circuit
@@ -94,7 +95,7 @@ impl Term {
         Term {
             coeff: self.coeff,
             mono: mono.push(self.mono, param, is_sin),
-            depth: self.depth + 1,
+            depth: self.depth + (is_sin || !mono.sine_order) as u32,
         }
     }
 }
@@ -166,10 +167,12 @@ const MIN_COMPACT_NODES: usize = 1 << 23;
 struct Monomials {
     arena: usize,
     nodes: Vec<Node>,
+    // Whether `Term::depth` counts only sin factors (k2 as a sine order).
+    sine_order: bool,
 }
 
 impl Monomials {
-    fn new(arena: usize) -> Self {
+    fn new(arena: usize, sine_order: bool) -> Self {
         let mut nodes = Vec::new();
         if arena == 0 {
             nodes.push(Node {
@@ -177,7 +180,11 @@ impl Monomials {
                 factor: 0,
             });
         }
-        Monomials { arena, nodes }
+        Monomials {
+            arena,
+            nodes,
+            sine_order,
+        }
     }
 
     fn len(&self) -> usize {
@@ -1494,6 +1501,7 @@ fn propagate_batch_impl<const NW: usize>(
     use_xy_weight_pruner: bool,
     paulidicts: Vec<Vec<(Vec<u64>, Vec<u64>, f64, Vec<u32>, Vec<u32>)>>,
     n_threads: usize,
+    sine_order: bool,
 ) -> PyResult<Vec<Vec<CoeffTerm>>> {
     let n_gates = gate_kind.len();
     let mut gates: Vec<GateSpec<NW>> = Vec::with_capacity(n_gates);
@@ -1539,7 +1547,9 @@ fn propagate_batch_impl<const NW: usize>(
 
     let mut results = Vec::with_capacity(paulidicts.len());
     for pd_spec in paulidicts {
-        let mut arenas: Vec<Monomials> = (0..n_shards).map(Monomials::new).collect();
+        let mut arenas: Vec<Monomials> = (0..n_shards)
+            .map(|a| Monomials::new(a, sine_order))
+            .collect();
         let mut shards: Vec<WordMap<NW>> = (0..n_shards).map(|_| WordMap::default()).collect();
         for (xw, zw, coeff, sin_idx, cos_idx) in pd_spec {
             let key = (words_to_array::<NW>(&xw), words_to_array::<NW>(&zw));
@@ -1594,6 +1604,7 @@ macro_rules! dispatch_nw {
     use_dead_qubit_pruner, use_xy_weight_pruner,
     paulidicts,
     n_threads = 1,
+    sine_order = false,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn propagate_batch(
@@ -1611,6 +1622,7 @@ fn propagate_batch(
     use_xy_weight_pruner: bool,
     paulidicts: Vec<Vec<(Vec<u64>, Vec<u64>, f64, Vec<u32>, Vec<u32>)>>,
     n_threads: usize,
+    sine_order: bool,
 ) -> PyResult<Vec<Vec<(f64, Vec<u32>, Vec<u32>)>>> {
     let nw = words_needed(num_qubits);
     py.allow_threads(move || {
@@ -1619,7 +1631,7 @@ fn propagate_batch(
             (
                 gate_kind, gate_wire0, gate_wire1, gate_param, gate_fixed,
                 k1, k2, coeff_threshold, use_dead_qubit_pruner, use_xy_weight_pruner,
-                paulidicts, n_threads,
+                paulidicts, n_threads, sine_order,
             )
         )
     })
@@ -1641,7 +1653,7 @@ fn evolve_single_gate_debug_impl<const NW: usize>(
         set_wire_bit(&mut wire_mask, wire1 as u32);
     }
     let gate = GateSpec::<NW> { kind, wire0, wire1, param, fixed, wire_mask };
-    let mut mono = Monomials::new(0);
+    let mut mono = Monomials::new(0, false);
     let terms: Vec<Term> = terms.iter().map(|(c, s, cc)| mono.term_from_lists(*c, s, cc)).collect();
     let mut out: Emitted<NW> = Vec::new();
     evolve_one_gate(&gate, words_to_array::<NW>(x), words_to_array::<NW>(z), terms, &mut mono, &mut out);

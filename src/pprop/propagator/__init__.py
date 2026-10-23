@@ -21,7 +21,7 @@ backward through the circuit's gates) runs entirely in the Rust extension
 import gc
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, List, Optional, Sequence, Tuple, Union
+from typing import Callable, List, Literal, Optional, Sequence, Tuple, Union
 
 from numpy import arange, array, asarray, cos, integer, ndarray, sin
 from pennylane import draw
@@ -115,6 +115,14 @@ class Propagator:
     k2 : int, optional
         Frequency cutoff. Trigonometric terms whose combined frequency exceeds
         this value are discarded during propagation. ``None`` disables truncation.
+        See ``k2_mode`` for what is counted.
+    k2_mode : {"frequency", "sine"}, optional
+        What ``k2`` counts. ``"frequency"`` (the default) counts every sin and
+        cos factor of a term. ``"sine"`` counts only its sin factors (the sine
+        order), so the truncation is exact at ``theta = 0`` and its error is
+        ``O(theta**(k2 + 1))`` for small angles. Cos-only paths are never cut
+        in sine mode, so it keeps more terms than frequency mode at the same
+        ``k2``.
 
     Attributes
     ----------
@@ -144,6 +152,8 @@ class Propagator:
         Pauli weight cutoff passed to the propagation routine.
     k2 : int or None
         Frequency cutoff passed to the propagation routine.
+    k2_mode : str
+        ``"frequency"`` or ``"sine"``: what ``k2`` counts (see above).
     exprs : list[list[tuple[float, list[int], list[int]]]]
         Populated by :meth:`propagate`. Each entry is a list of
         ``(coeff, sin_indices, cos_indices)`` tuples that together encode the
@@ -190,10 +200,14 @@ class Propagator:
         ansatz: Callable,
         k1: Optional[int] = None,
         k2: Optional[int] = None,
+        k2_mode: Literal["frequency", "sine"] = "frequency",
     ):
+        if k2_mode not in ("frequency", "sine"):
+            raise ValueError(f"k2_mode must be 'frequency' or 'sine', got {k2_mode!r}")
         # Store user-supplied parameters
         self.k1 = k1
         self.k2 = k2
+        self.k2_mode = k2_mode
         self.ansatz = ansatz
 
         # Capture the ansatz in a quantum tape
@@ -283,6 +297,7 @@ class Propagator:
 
         Fixed gates no longer contribute trigonometric factors toward ``k2``.
         Results under frequency truncation can differ from earlier revisions.
+        With ``k2_mode="sine"`` only sin factors count toward ``k2``.
 
         Parameters
         ----------
@@ -383,6 +398,7 @@ class Propagator:
                 use_dead_qubit_pruner, use_xy_weight_pruner,
                 rust_paulidicts,
                 n_threads,
+                sine_order=self.k2_mode == "sine",
             )
         finally:
             if gc_was_enabled:
