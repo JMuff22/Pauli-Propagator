@@ -49,6 +49,7 @@ prop = Propagator(
     ansatz, 
     k1 = None, # Cutoff on the Pauli Weight
     k2 = None, # Cutoff on the frequencies
+    k2_mode = "frequency", # or "sine": k2 counts only sin factors (exact at theta = 0)
 )
 ```
 ``` 
