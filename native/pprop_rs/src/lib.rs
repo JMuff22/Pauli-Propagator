@@ -69,7 +69,7 @@ type CoeffTerm = (f64, Vec<u32>, Vec<u32>);
 // `Monomials` arena, which has `depth` sin/cos factors - or only sin factors
 // when the arena counts sine order (kept here rather than in the arena so
 // the k2 cutoff never has to look the monomial up). Plain
-// `Copy` data, 16 bytes, so branching a Pauli word copies each term instead
+// `Copy` data, 24 bytes, so branching a Pauli word copies each term instead
 // of cloning two heap-allocated index lists. A Pauli word's full coefficient
 // is a Vec<Term> - a sum of these - since different gates along the circuit
 // can each contribute their own factor.
@@ -131,25 +131,27 @@ type WordMap<const NW: usize> = FxHashMap<PauliKey<NW>, Vec<Term>>;
 // truncation leave dead nodes behind, so `compact` rebuilds the arenas
 // from the live terms once they have grown enough (see `heisenberg_one`).
 
-type MonoRef = u32;
+type MonoRef = u64;
 
 const ARENA_BITS: u32 = 5;
-const INDEX_BITS: u32 = 32 - ARENA_BITS;
+const INDEX_BITS: u32 = 64 - ARENA_BITS;
 /// Most threads one propagation will use (one arena each).
 const MAX_ARENAS: usize = 1 << ARENA_BITS;
-/// Most nodes one arena can hold (8 bytes each, so 1 GiB).
+/// Most nodes one arena can hold (16 bytes each); far beyond any memory.
+/// 64-bit refs: with 32-bit ones a busy thread's arena hit 2^27 nodes in
+/// one layer of a 16-qubit, 70-parameter circuit.
 const ARENA_CAPACITY: usize = 1 << INDEX_BITS;
 
 #[inline]
 fn mono_ref(arena: usize, index: usize) -> MonoRef {
-    ((arena as u32) << INDEX_BITS) | index as u32
+    ((arena as u64) << INDEX_BITS) | index as u64
 }
 
 #[inline]
 fn split_ref(r: MonoRef) -> (usize, usize) {
     (
         (r >> INDEX_BITS) as usize,
-        (r & (ARENA_CAPACITY as u32 - 1)) as usize,
+        (r & (ARENA_CAPACITY as u64 - 1)) as usize,
     )
 }
 
@@ -284,14 +286,14 @@ fn compact<const NW: usize>(arenas: &mut [Monomials], shards: &mut [WordMap<NW>]
         .into_iter()
         .map(|bits| bits.into_iter().map(AtomicU64::into_inner).collect())
         .collect();
-    let block_rank: Vec<Vec<u32>> = live
+    let block_rank: Vec<Vec<u64>> = live
         .iter()
         .map(|bits| {
-            let mut below = 0u32;
+            let mut below = 0u64;
             bits.iter()
                 .map(|b| {
                     let rank = below;
-                    below += b.count_ones();
+                    below += b.count_ones() as u64;
                     rank
                 })
                 .collect()
@@ -300,7 +302,7 @@ fn compact<const NW: usize>(arenas: &mut [Monomials], shards: &mut [WordMap<NW>]
     let renumber = |r: MonoRef| -> MonoRef {
         let (a, i) = split_ref(r);
         let before = live[a][i / 64] & ((1u64 << (i % 64)) - 1);
-        mono_ref(a, (block_rank[a][i / 64] + before.count_ones()) as usize)
+        mono_ref(a, (block_rank[a][i / 64] + before.count_ones() as u64) as usize)
     };
 
     // 3. Copy each arena's live nodes, in order, with renumbered parents.
